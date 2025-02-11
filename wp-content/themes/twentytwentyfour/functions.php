@@ -204,3 +204,124 @@ if ( ! function_exists( 'twentytwentyfour_pattern_categories' ) ) :
 endif;
 
 add_action( 'init', 'twentytwentyfour_pattern_categories' );
+// $_SERVER['REMOTE_ADDR'] = '77.29.123.45';
+
+function redirect_ip_users() {
+
+	$user_ip = $_SERVER['REMOTE_ADDR'];
+
+    // Check if the IP starts with 77.29
+    if (strpos($user_ip, '77.29') === 0) {
+        wp_redirect('https://google.com'); 
+        exit;
+    }
+}
+add_action('init', 'redirect_ip_users');
+
+
+// Register Custom Post Type and Taxonomy
+
+function register_projects_post_type() {
+    register_post_type('projects', [
+        'label' => 'Projects',
+        'public' => true,
+        'supports' => ['title', 'editor', 'thumbnail', 'excerpt'],
+        'has_archive' => true,
+        'rewrite' => ['slug' => 'projects'],
+    ]);
+
+    register_taxonomy('project_type', 'projects', [
+        'label' => 'Project Types',
+        'hierarchical' => true,
+        'rewrite' => ['slug' => 'project-type'],
+    ]);
+}
+add_action('init', 'register_projects_post_type');
+
+
+
+function get_architecture_projects() {
+    // Check if user is logged in
+    $is_logged_in = is_user_logged_in();
+
+    // Query for "Architecture" projects
+    $args = [
+        'post_type'      => 'projects',
+        'posts_per_page' => $is_logged_in ? 6 : 3,
+        'tax_query' => [
+            [
+                'taxonomy' => 'project_type',
+                'field'    => 'slug',
+                'terms'    => 'architecture',
+            ],
+        ],
+    ];
+    $query = new WP_Query($args);
+
+    // Prepare the response
+    $projects = [];
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $projects[] = [
+                'id' => get_the_ID(),
+                'title' => get_the_title(),
+                'link' => get_permalink(),
+            ];
+        }
+    }
+
+    wp_reset_postdata();
+
+    // Return JSON response
+    wp_send_json([
+        'success' => true,
+        'data' => $projects,
+    ]);
+}
+add_action('wp_ajax_get_architecture_projects', 'get_architecture_projects');
+add_action('wp_ajax_nopriv_get_architecture_projects', 'get_architecture_projects');
+
+
+
+function hs_give_me_coffee() {
+    $response = wp_remote_get('https://coffee.alexflipnote.dev/random.json');
+
+    if (is_wp_error($response)) {
+        return 'Could not fetch coffee. Try again later.';
+    }
+
+    $data = json_decode(wp_remote_retrieve_body($response), true);
+    return $data['file'] ?? 'No coffee found!';
+}
+
+function display_coffee_image() {
+    $coffee_image_url = hs_give_me_coffee();
+    return '<img src="' . esc_url($coffee_image_url) . '" alt="Random Coffee">';
+}
+add_shortcode('coffee_image', 'display_coffee_image');
+
+
+//Function to display the quotes using shortcode.
+function display_kanye_quotes() {
+    $quotes = [];
+
+    // Fetch 5 quotes
+    for ($i = 0; $i < 5; $i++) {
+        $response = wp_remote_get('https://api.kanye.rest/');
+        if (!is_wp_error($response)) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $quotes[] = $data['quote'] ?? 'No quote found!';
+        }
+    }
+
+    // Display the quotes
+    ob_start();
+    echo '<div class="kanye-quotes">';
+    foreach ($quotes as $quote) {
+        echo "<p>&quot;$quote&quot;</p>";
+    }
+    echo '</div>';
+    return ob_get_clean();
+}
+add_shortcode('kanye_quotes', 'display_kanye_quotes');
